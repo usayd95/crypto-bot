@@ -1,15 +1,15 @@
 import os
 import logging
 import requests
-from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes
-import google.generativeai as genai  # вместо anthropic
+import google.generativeai as genai
 from promo_helper import register_promo_handlers
 from x_helper import register_x_handlers
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "")
-GOOGLE_GEMINI_API_KEY = os.getenv("GOOGLE_GEMINI_API_KEY", "")  # новый ключ
+GOOGLE_GEMINI_API_KEY = os.getenv("GOOGLE_GEMINI_API_KEY", "")
 CRYPTOPANIC_API_KEY = os.getenv("CRYPTOPANIC_API_KEY", "")
 
 SCHEDULE = [
@@ -31,7 +31,7 @@ def fetch_news_cryptopanic():
         }, timeout=10)
         return [{"title": r["title"], "url": r["url"]} for r in resp.json().get("results", [])[:5]]
     except Exception as e:
-        log.warning("CryptoPanic: " + str(e))
+        log.warning(f"CryptoPanic: {e}")
         return []
 
 
@@ -46,7 +46,7 @@ def fetch_news_rss():
             if i.findtext("title") and i.findtext("link")
         ]
     except Exception as e:
-        log.warning("RSS: " + str(e))
+        log.warning(f"RSS: {e}")
         return []
 
 
@@ -57,22 +57,23 @@ def get_news():
 def ai_process_news(news_items):
     if not news_items:
         return None
-    headlines = "\n".join(str(i+1) + ". " + n["title"] for i, n in enumerate(news_items))
+    headlines = "\n".join(f"{i+1}. {n['title']} ({n['url']})" for i, n in enumerate(news_items))
     
-    # Инициализация Gemini
+    # Настройка Gemini
     genai.configure(api_key=GOOGLE_GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-2.0-flash")  # или gemini-1.5-flash
+    model = genai.GenerativeModel("gemini-2.0-flash")
     
     prompt = (
         "Ты редактор крипто-канала в Telegram.\n"
-        "Создай 1 интересный пост на русском на основе этих новостей.\n"
+        "Создай 1 интересный пост на русском языке на основе этих новостей.\n"
         "- Начни с эмодзи и заголовка\n"
         "- 2-3 предложения о сути\n"
         "- Вывод для инвесторов\n"
-        "- 3-5 хэштегов в конце\n\n"
-        f"Новости:\n{headlines}\n\nВерни только текст поста."
+        "- 3-5 хэштегов в конце\n"
+        "- 150-250 слов, живой тон\n\n"
+        f"Новости:\n{headlines}\n\n"
+        "Верни только текст поста."
     )
-    
     response = model.generate_content(prompt)
     return response.text.strip()
 
@@ -89,13 +90,14 @@ async def post_to_channel(context):
     keyboard = InlineKeyboardMarkup([[
         InlineKeyboardButton(
             "Поделиться каналом",
-            url="https://t.me/share/url?url=https://t.me/" + CHANNEL_ID.lstrip("@")
+            url="https://t.me/share/url?url=https://t.me/" + CHANNEL_ID.lstrip("@") + "&text=Крутой крипто канал!"
         )
     ]])
     await bot.send_message(
         chat_id=CHANNEL_ID,
         text=post_text,
         reply_markup=keyboard,
+        parse_mode="HTML",
         disable_web_page_preview=True,
     )
     log.info("Опубликовано в " + CHANNEL_ID)
@@ -103,50 +105,55 @@ async def post_to_channel(context):
 
 async def cmd_start(update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Бот работает!\n\n"
-        "/post - опубликовать пост сейчас\n"
-        "/schedule - расписание\n"
-        "/x_post - пост для X\n"
-        "/x_thread - тред для X\n"
-        "/x_reply текст - комментарий\n"
-        "/x_ideas - идеи\n"
-        "/promo_offer - предложение партнерам\n"
-        "/partners - список партнеров"
+        "Bot rabotaet!\n\n"
+        "Kontent:\n"
+        "/post - opublikovat post seychas\n"
+        "/schedule - raspisanie\n\n"
+        "X (Twitter):\n"
+        "/x_post - post dlya X\n"
+        "/x_thread - tred dlya X\n"
+        "/x_reply tekst - kommentariy\n"
+        "/x_ideas - idei dlya postov\n\n"
+        "Vzaimopiar:\n"
+        "/promo_offer - tekst predlozheniya\n"
+        "/add_partner kanal - dobavit partnera\n"
+        "/partners - spisok partnerov\n"
+        "/post_partner kanal - post o partnere\n"
+        "/promo_stats - statistika"
     )
 
 
 async def cmd_post_now(update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Генерирую пост...")
+    await update.message.reply_text("Generiruyu post...")
     await post_to_channel(context)
-    await update.message.reply_text("Опубликовано!")
+    await update.message.reply_text("Opublikovano!")
 
 
 async def cmd_schedule(update, context: ContextTypes.DEFAULT_TYPE):
-    times = "\n".join(str(s["hour"]) + ":00" for s in SCHEDULE)
-    await update.message.reply_text("Расписание:\n" + times)
+    times = "\n".join(f"{s['hour']:02d}:{s['minute']:02d}" for s in SCHEDULE)
+    await update.message.reply_text("Raspisanie:\n" + times)
 
 
 def main():
-    # Проверяем наличие API-ключа Gemini
     if not GOOGLE_GEMINI_API_KEY:
-        log.error("GOOGLE_GEMINI_API_KEY не задан!")
+        log.error("GOOGLE_GEMINI_API_KEY ne zadana!")
         return
 
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("post", cmd_post_now))
     app.add_handler(CommandHandler("schedule", cmd_schedule))
     register_promo_handlers(app)
     register_x_handlers(app)
 
+    # Планировщик через job_queue
     for s in SCHEDULE:
         app.job_queue.run_daily(
             post_to_channel,
             time=__import__("datetime").time(hour=s["hour"], minute=s["minute"])
         )
 
-    log.info("Бот запущен!")
+    log.info("Bot zapuschen!")
     app.run_polling()
 
 
