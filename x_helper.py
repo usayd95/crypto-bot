@@ -13,23 +13,25 @@
 
 import os
 import logging
-import anthropic
+import google.generativeai as genai
 
 log = logging.getLogger(__name__)
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+GOOGLE_GEMINI_API_KEY = os.getenv("GOOGLE_GEMINI_API_KEY", "")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "@ваш_канал")
 
 
-def get_claude():
-    return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+def get_gemini():
+    """Инициализирует и возвращает модель Gemini."""
+    genai.configure(api_key=GOOGLE_GEMINI_API_KEY)
+    return genai.GenerativeModel("gemini-2.0-flash")  # или gemini-1.5-flash
 
 
 # ─── ГЕНЕРАТОРЫ ──────────────────────────────────────────────────────────────
 
 def gen_x_post(topic: str = "") -> str:
     """Сгенерировать одиночный пост для X (до 280 символов)."""
-    client = get_claude()
+    model = get_gemini()
     prompt = f"""Ты крипто-эксперт с популярным аккаунтом на X (Twitter).
 Напиши 1 пост на русском языке {'на тему: ' + topic if topic else 'на актуальную крипто-тему'}.
 
@@ -43,17 +45,13 @@ def gen_x_post(topic: str = "") -> str:
 
 Верни только текст поста."""
 
-    resp = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=200,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return resp.content[0].text.strip()
+    response = model.generate_content(prompt)
+    return response.text.strip()
 
 
 def gen_x_thread(topic: str = "") -> list[str]:
     """Сгенерировать тред из 5 твитов для X."""
-    client = get_claude()
+    model = get_gemini()
     prompt = f"""Ты крипто-эксперт на X (Twitter).
 Напиши тред из 5 твитов на русском {'на тему: ' + topic if topic else 'на актуальную крипто-тему'}.
 
@@ -70,12 +68,8 @@ def gen_x_thread(topic: str = "") -> list[str]:
 - Живой разговорный стиль
 - Верни только 5 пронумерованных твитов, без пояснений."""
 
-    resp = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=800,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    text = resp.content[0].text.strip()
+    response = model.generate_content(prompt)
+    text = response.text.strip()
 
     # Парсим пронумерованный список
     tweets = []
@@ -88,7 +82,7 @@ def gen_x_thread(topic: str = "") -> list[str]:
 
 def gen_x_reply(post_text: str) -> str:
     """Сгенерировать текст комментария под конкретный пост."""
-    client = get_claude()
+    model = get_gemini()
     prompt = f"""Ты крипто-эксперт на X (Twitter).
 Под этим постом нужно оставить вдумчивый комментарий:
 
@@ -103,17 +97,13 @@ def gen_x_reply(post_text: str) -> str:
 
 Верни только текст комментария."""
 
-    resp = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=200,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return resp.content[0].text.strip()
+    response = model.generate_content(prompt)
+    return response.text.strip()
 
 
 def gen_x_ideas() -> list[str]:
     """Сгенерировать 5 идей для постов на сегодня."""
-    client = get_claude()
+    model = get_gemini()
     prompt = """Ты контент-стратег для крипто-аккаунта на X (Twitter).
 Дай 5 конкретных идей для постов на сегодня на русском языке.
 
@@ -124,12 +114,8 @@ def gen_x_ideas() -> list[str]:
 
 Верни только 5 идей, без вступления."""
 
-    resp = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=400,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return [line.strip() for line in resp.content[0].text.strip().split("\n") if line.strip()]
+    response = model.generate_content(prompt)
+    return [line.strip() for line in response.text.strip().split("\n") if line.strip()]
 
 
 # ─── КОМАНДЫ БОТА ────────────────────────────────────────────────────────────
@@ -213,4 +199,3 @@ def register_x_handlers(app):
     app.add_handler(CommandHandler("x_reply", cmd_x_reply))
     app.add_handler(CommandHandler("x_ideas", cmd_x_ideas))
     log.info("Модуль X (Twitter) подключён.")
-  
