@@ -3,7 +3,6 @@ import logging
 import requests
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import anthropic
 from promo_helper import register_promo_handlers
 from x_helper import register_x_handlers
@@ -32,7 +31,7 @@ def fetch_news_cryptopanic():
         }, timeout=10)
         return [{"title": r["title"], "url": r["url"]} for r in resp.json().get("results", [])[:5]]
     except Exception as e:
-        log.warning(f"CryptoPanic: {e}")
+        log.warning("CryptoPanic: " + str(e))
         return []
 
 
@@ -47,7 +46,7 @@ def fetch_news_rss():
             if i.findtext("title") and i.findtext("link")
         ]
     except Exception as e:
-        log.warning(f"RSS: {e}")
+        log.warning("RSS: " + str(e))
         return []
 
 
@@ -58,28 +57,27 @@ def get_news():
 def ai_process_news(news_items):
     if not news_items:
         return None
-    headlines = "\n".join(f"{i+1}. {n['title']} ({n['url']})" for i, n in enumerate(news_items))
+    headlines = "\n".join(str(i+1) + ". " + n["title"] for i, n in enumerate(news_items))
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     resp = client.messages.create(
         model="claude-sonnet-4-20250514",
         max_tokens=600,
         messages=[{"role": "user", "content": (
-            "Ты редактор крипто-канала в Telegram.\n"
-            "Создай 1 интересный пост на русском языке на основе этих новостей.\n"
-            "- Начни с эмодзи и заголовка\n"
-            "- 2-3 предложения о сути\n"
-            "- Вывод для инвесторов\n"
-            "- 3-5 хэштегов в конце\n"
-            "- 150-250 слов, живой тон\n\n"
-            f"Новости:\n{headlines}\n\n"
-            "Верни только текст поста."
+            "Ty redaktor kripto-kanala v Telegram.\n"
+            "Sozdaj 1 interesnyj post na russkom na osnove etih novostej.\n"
+            "- Nachni s emoji i zagolovka\n"
+            "- 2-3 predlozheniya o suti\n"
+            "- Vyvod dlya investorov\n"
+            "- 3-5 heshtegow v konce\n\n"
+            "Novosti:\n" + headlines + "\n\nVerni tolko tekst posta."
         )}]
     )
     return resp.content[0].text.strip()
 
 
-async def post_to_channel(bot: Bot):
-    log.info("Запуск публикации...")
+async def post_to_channel(context):
+    bot = context.bot
+    log.info("Zapusk publikacii...")
     news = get_news()
     if not news:
         return
@@ -88,63 +86,59 @@ async def post_to_channel(bot: Bot):
         return
     keyboard = InlineKeyboardMarkup([[
         InlineKeyboardButton(
-            "Поделиться каналом",
-            url="https://t.me/share/url?url=https://t.me/" + CHANNEL_ID.lstrip("@") + "&text=Крутой крипто канал!"
+            "Podelitsya kanalom",
+            url="https://t.me/share/url?url=https://t.me/" + CHANNEL_ID.lstrip("@")
         )
     ]])
     await bot.send_message(
         chat_id=CHANNEL_ID,
         text=post_text,
         reply_markup=keyboard,
-        parse_mode="HTML",
         disable_web_page_preview=True,
     )
-    log.info("Опубликовано в " + CHANNEL_ID)
+    log.info("Opublikovano v " + CHANNEL_ID)
 
 
 async def cmd_start(update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Bot rabotaet!\n\n"
-        "Kontent:\n"
         "/post - opublikovat post seychas\n"
-        "/schedule - raspisanie\n\n"
-        "X (Twitter):\n"
+        "/schedule - raspisanie\n"
         "/x_post - post dlya X\n"
         "/x_thread - tred dlya X\n"
         "/x_reply tekst - kommentariy\n"
-        "/x_ideas - idei dlya postov\n\n"
-        "Vzaimopiar:\n"
-        "/promo_offer - tekst predlozheniya\n"
-        "/add_partner kanal - dobavit partnera\n"
-        "/partners - spisok partnerov\n"
-        "/post_partner kanal - post o partnere\n"
-        "/promo_stats - statistika"
+        "/x_ideas - idei\n"
+        "/promo_offer - predlozhenie partneram\n"
+        "/partners - spisok partnerov"
     )
 
 
 async def cmd_post_now(update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Generiruyu post...")
-    await post_to_channel(context.bot)
+    await post_to_channel(context)
     await update.message.reply_text("Opublikovano!")
 
 
 async def cmd_schedule(update, context: ContextTypes.DEFAULT_TYPE):
-    times = "\n".join(f"{s['hour']:02d}:{s['minute']:02d}" for s in SCHEDULE)
+    times = "\n".join(str(s["hour"]) + ":00" for s in SCHEDULE)
     await update.message.reply_text("Raspisanie:\n" + times)
 
 
 def main():
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("post", cmd_post_now))
     app.add_handler(CommandHandler("schedule", cmd_schedule))
     register_promo_handlers(app)
     register_x_handlers(app)
 
-    scheduler = AsyncIOScheduler()
+    # Pravilnyj sposob zapuska planirovshhika cherez JobQueue
     for s in SCHEDULE:
-        scheduler.add_job(post_to_channel, "cron", hour=s["hour"], minute=s["minute"], args=[app.bot])
-    scheduler.start()
+        app.job_queue.run_daily(
+            post_to_channel,
+            time=__import__("datetime").time(hour=s["hour"], minute=s["minute"])
+        )
 
     log.info("Bot zapuschen!")
     app.run_polling()
@@ -152,4 +146,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
+            
