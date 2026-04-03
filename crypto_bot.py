@@ -9,8 +9,8 @@ Telegram Crypto Channel Bot
     promo_helper.py — модуль взаимопиара
 
 Настройка переменных окружения (Railway → Variables):
-    TELEGRAM_BOT_TOKEN=8630958831:AAHlHI0xcy4gniKsZsg8GzX6ICKXzlbwYK0
-    CHANNEL_ID=1003893689229
+    TELEGRAM_BOT_TOKEN=твой_токен_от_BotFather
+    CHANNEL_ID=@твой_канал
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
     CRYPTOPANIC_API_KEY  (опционально)
 """
