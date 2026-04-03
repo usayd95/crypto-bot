@@ -1,20 +1,3 @@
-"""
-Telegram Crypto Channel Bot
-============================
-Установка:
-    pip install python-telegram-bot apscheduler requests anthropic
-
-Файлы проекта:
-    crypto_bot.py   — основной бот
-    promo_helper.py — модуль взаимопиара
-
-Настройка переменных окружения (Railway → Variables):
-    TELEGRAM_BOT_TOKEN=твой_токен_от_BotFather
-    CHANNEL_ID=@твой_канал
-    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-    CRYPTOPANIC_API_KEY  (опционально)
-"""
-
 import os
 import logging
 import requests
@@ -25,14 +8,11 @@ import anthropic
 from promo_helper import register_promo_handlers
 from x_helper import register_x_handlers
 
-# ─── НАСТРОЙКИ ───────────────────────────────────────────────────────────────
-
-TELEGRAM_BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN", "")
-CHANNEL_ID          = os.getenv("CHANNEL_ID", "@ваш_канал")
-ANTHROPIC_API_KEY   = os.getenv("ANTHROPIC_API_KEY", "ВАШ_КЛЮЧ")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHANNEL_ID = os.getenv("CHANNEL_ID", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 CRYPTOPANIC_API_KEY = os.getenv("CRYPTOPANIC_API_KEY", "")
 
-# Расписание — меняй как хочешь:
 SCHEDULE = [
     {"hour": 9,  "minute": 0},
     {"hour": 13, "minute": 0},
@@ -43,7 +23,6 @@ SCHEDULE = [
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 log = logging.getLogger(__name__)
 
-# ─── ПАРСИНГ НОВОСТЕЙ ─────────────────────────────────────────────────────────
 
 def fetch_news_cryptopanic():
     try:
@@ -55,6 +34,7 @@ def fetch_news_cryptopanic():
     except Exception as e:
         log.warning(f"CryptoPanic: {e}")
         return []
+
 
 def fetch_news_rss():
     try:
@@ -70,10 +50,10 @@ def fetch_news_rss():
         log.warning(f"RSS: {e}")
         return []
 
+
 def get_news():
     return (fetch_news_cryptopanic() if CRYPTOPANIC_API_KEY else []) or fetch_news_rss()
 
-# ─── AI ОБРАБОТКА ─────────────────────────────────────────────────────────────
 
 def ai_process_news(news_items):
     if not news_items:
@@ -83,22 +63,20 @@ def ai_process_news(news_items):
     resp = client.messages.create(
         model="claude-sonnet-4-20250514",
         max_tokens=600,
-        messages=[{"role": "user", "content": f"""Ты редактор крипто-канала в Telegram.
-Создай 1 интересный пост на русском языке на основе этих новостей.
-- Начни с эмодзи и заголовка
-- 2-3 предложения о сути
-- Вывод для инвесторов
-- 3-5 хэштегов в конце
-- 150-250 слов, живой тон
-
-Новости:
-{headlines}
-
-Верни только текст поста."""}]
+        messages=[{"role": "user", "content": (
+            "Ты редактор крипто-канала в Telegram.\n"
+            "Создай 1 интересный пост на русском языке на основе этих новостей.\n"
+            "- Начни с эмодзи и заголовка\n"
+            "- 2-3 предложения о сути\n"
+            "- Вывод для инвесторов\n"
+            "- 3-5 хэштегов в конце\n"
+            "- 150-250 слов, живой тон\n\n"
+            f"Новости:\n{headlines}\n\n"
+            "Верни только текст поста."
+        )}]
     )
     return resp.content[0].text.strip()
 
-# ─── ПУБЛИКАЦИЯ ───────────────────────────────────────────────────────────────
 
 async def post_to_channel(bot: Bot):
     log.info("Запуск публикации...")
@@ -110,48 +88,50 @@ async def post_to_channel(bot: Bot):
         return
     keyboard = InlineKeyboardMarkup([[
         InlineKeyboardButton(
-            "📢 Поделиться каналом",
-            url=f"https://t.me/share/url?url=https://t.me/{CHANNEL_ID.lstrip('@')}&text=Крутой+крипто+канал!"
+            "Поделиться каналом",
+            url="https://t.me/share/url?url=https://t.me/" + CHANNEL_ID.lstrip("@") + "&text=Крутой крипто канал!"
         )
     ]])
     await bot.send_message(
-        chat_id=CHANNEL_ID, text=post_text,
-        reply_markup=keyboard, parse_mode="HTML",
+        chat_id=CHANNEL_ID,
+        text=post_text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
         disable_web_page_preview=True,
     )
-    log.info(f"Опубликовано в {CHANNEL_ID}")
+    log.info("Опубликовано в " + CHANNEL_ID)
 
-# ─── КОМАНДЫ ──────────────────────────────────────────────────────────────────
 
 async def cmd_start(update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "✅ Бот работает!\n\n"
-        "📰 Telegram канал:\n"
-        "/post — опубликовать пост сейчас\n"
-        "/schedule — расписание\n\n"
-        "🐦 X (Twitter):\n"
-        "/x_post [тема] — пост для X\n"
-        "/x_thread [тема] — тред для X\n"
-        "/x_reply текст — комментарий под пост\n"
-        "/x_ideas — идеи для постов на сегодня\n\n"
-        "🤝 Взаимопиар:\n"
-        "/promo_offer — текст предложения партнёрам\n"
-        "/add_partner @канал Описание — добавить партнёра\n"
-        "/partners — список партнёров\n"
-        "/post_partner @канал — пост о партнёре\n"
-        "/promo_stats — статистика"
+        "Bot rabotaet!\n\n"
+        "Kontent:\n"
+        "/post - opublikovat post seychas\n"
+        "/schedule - raspisanie\n\n"
+        "X (Twitter):\n"
+        "/x_post - post dlya X\n"
+        "/x_thread - tred dlya X\n"
+        "/x_reply tekst - kommentariy\n"
+        "/x_ideas - idei dlya postov\n\n"
+        "Vzaimopiar:\n"
+        "/promo_offer - tekst predlozheniya\n"
+        "/add_partner kanal - dobavit partnera\n"
+        "/partners - spisok partnerov\n"
+        "/post_partner kanal - post o partnere\n"
+        "/promo_stats - statistika"
     )
 
+
 async def cmd_post_now(update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("⏳ Генерирую пост...")
+    await update.message.reply_text("Generiruyu post...")
     await post_to_channel(context.bot)
-    await update.message.reply_text("✅ Опубликовано!")
+    await update.message.reply_text("Opublikovano!")
+
 
 async def cmd_schedule(update, context: ContextTypes.DEFAULT_TYPE):
-    times = "\n".join(f"• {s['hour']:02d}:{s['minute']:02d}" for s in SCHEDULE)
-    await update.message.reply_text(f"📅 Расписание:\n{times}")
+    times = "\n".join(f"{s['hour']:02d}:{s['minute']:02d}" for s in SCHEDULE)
+    await update.message.reply_text("Raspisanie:\n" + times)
 
-# ─── ЗАПУСК ───────────────────────────────────────────────────────────────────
 
 def main():
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
@@ -159,16 +139,17 @@ def main():
     app.add_handler(CommandHandler("post", cmd_post_now))
     app.add_handler(CommandHandler("schedule", cmd_schedule))
     register_promo_handlers(app)
-    register_x_handlers(app)  # модуль X  # подключаем взаимопиар
+    register_x_handlers(app)
 
     scheduler = AsyncIOScheduler()
     for s in SCHEDULE:
         scheduler.add_job(post_to_channel, "cron", hour=s["hour"], minute=s["minute"], args=[app.bot])
     scheduler.start()
 
-    log.info("Бот запущен!")
+    log.info("Bot zapuschen!")
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()
-
+    
