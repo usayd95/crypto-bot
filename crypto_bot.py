@@ -27,7 +27,7 @@ from x_helper import register_x_handlers
 
 # ─── НАСТРОЙКИ ───────────────────────────────────────────────────────────────
 
-TELEGRAM_BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN", "")
 CHANNEL_ID          = os.getenv("CHANNEL_ID", "@ваш_канал")
 ANTHROPIC_API_KEY   = os.getenv("ANTHROPIC_API_KEY", "ВАШ_КЛЮЧ")
 CRYPTOPANIC_API_KEY = os.getenv("CRYPTOPANIC_API_KEY", "")
